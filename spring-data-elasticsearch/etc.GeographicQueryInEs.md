@@ -159,8 +159,8 @@ https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-geo-bo
 - 경계 상자와 교차하는 geo_point 값을 일치시키려면 geo_bounding_box 필터를 사용하십시오. 
 - 상자를 정의하려면 반대쪽 두 모서리에 대한 지오포인트 값을 제공하세요.
 
-##### Java 코드
-```java
+##### kotlin 코드
+```kotlin
 query.geoBoundingBox { geoBoundingBoxQuery: GeoBoundingBoxQuery.Builder ->
      geoBoundingBoxQuery.field("location")
          .boundingBox { geoBounds: GeoBounds.Builder ->
@@ -169,12 +169,11 @@ query.geoBoundingBox { geoBoundingBoxQuery: GeoBoundingBoxQuery.Builder ->
                      geoLocation.coords(
                          listOf(30.0, 31.0)
                      )
-                 }
-                     .bottomRight { geoLocation: GeoLocation.Builder ->
-                         geoLocation.coords(
-                             listOf(32.0, 28.0)
-                         )
-                     }
+                 }.bottomRight { geoLocation: GeoLocation.Builder ->
+                      geoLocation.coords(
+                          listOf(32.0, 28.0)
+                      )
+                  }
              }
          }
  }
@@ -304,7 +303,7 @@ PUT /test/_doc/1
 ```
 geo_shape 쿼리는 geo_shape 필드가 기본 방향인 오른쪽(시계 반대 방향)을 사용한다고 가정합니다. 다각형 방향을 참조하세요.
 
-##### Java 코드 
+##### kotlin 코드 
 
 ```kotlin
 fun findAllByGeoShape(list: List<LatLonGeoLocation>): List<BuildingInfo> {

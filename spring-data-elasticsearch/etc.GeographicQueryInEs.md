@@ -243,6 +243,27 @@ GET /example/_search
   }
 }
 ```
+```agsl
+POST /example/_search
+{
+    "from": 0,
+    "query": {
+        "geo_shape": {
+            "geometry": {
+                "shape": "POLYGON ((126.90727686146623 37.53054723433391, 126.90835778517184 37.53085785794988, 126.90949701621935 37.52790593739182, 126.90832966272394 37.52759509171798, 126.90727686146623 37.53054723433391))",
+                "relation": "WITHIN"
+            }
+        }
+    },
+    "size": 10,
+    "sort": [
+        
+    ],
+    "track_scores": false,
+    "version": true
+}
+
+```
 #### Spatial relations
 - INTERSECTS - (기본값) query geometry를 **교차하는** geo_shape나 geo_point 필드를 가진 모든 문서를 반환한다.  
 - DISJOINT - query geometry를 **공통으로 하고 있지 않는** geo_shape나 geo_point 필드를 가진 모든 문서를 반환한다.
@@ -285,8 +306,27 @@ geo_shape 쿼리는 geo_shape 필드가 기본 방향인 오른쪽(시계 반대
 
 ##### Java 코드 
 
-```java
-GeoShapeQueryBuilder builder = geoShapeQuery(name, indexedShapeId, indexedShapeType);
-builder.relation(ShapeRelation.DISJOINT);
-return builder;
+```kotlin
+fun findAllByGeoShape(list: List<LatLonGeoLocation>): List<BuildingInfo> {
+
+   val xx = list.map { it.lat() }.toDoubleArray()
+   val yy = list.map { it.lon() }.toDoubleArray()
+
+   val shape = JsonData.of(WellKnownText.toWKT(Polygon(LinearRing(xx, yy))))
+
+   val nativeQuery = NativeQuery.builder().withQuery { query ->
+      query.geoShape { geoShapeQuery ->
+         geoShapeQuery
+            .field("geometry")
+            .shape { geoShapeFieldQuery ->
+               geoShapeFieldQuery.relation(GeoShapeRelation.Within).shape(shape)
+            }
+      }
+   }.withPageable(Pageable.ofSize(10)).build()
+
+   val searchHint = elasticsearchOperations.search(nativeQuery, BuildingInfo::class.java)
+
+   return searchHint.map { it.content }.toList()
+
+}
 ```

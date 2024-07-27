@@ -115,8 +115,8 @@ response = chain.invoke(
 response.content
 ```
 
-#### 6. 5번 상황을 ChatPromotTemplate을 통하여 처리하기
-- 5번 상황을 처리하면서, ChatPromotTemplate 이용의 장점을 추가할 수 있다.
+#### 6. 5번 환경에 MessageHistory 를 추가하여 처리하기
+- 5번 상황을 처리하면서, MessageHistory 이용하여 메세지 히스토리 기능을 추가할 수 있다.
 ```python
 dotenv.load_dotenv()
 model = ChatOpenAI(model="gpt-3.5-turbo")
@@ -217,7 +217,9 @@ response.content
 ```
 
 
-#### 8. Message History를 사용하기
+#### 8. 7번 상황에서 Message History를 추가하기
+- 7번 상황을 처리하면서, Message History 를 사용하여 장점을 이용할 수 있다.
+
 ```python
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import (

@@ -5,7 +5,7 @@ https://python.langchain.com/v0.2/docs/tutorials/rag/
 - RAG은 추가적인 데이터로 LLM 지식을 강화하기 위한 기술이다.
 - LLM은 넓은 범위의 토픽에 대해서 추론할 수 있지만, LLM은 트레인 받은 시점까지의 공개 데이터에 대해서만 알고 있다. 그래서 만약 private data 에 대해서 AI가 추론할 수 있게 하고 싶다면, 모델의 지식을 강화할 필요가 있다.`적절한 데이터를 가져오고, 모델에게 입력을 넣는 것을 RAG 이라고 한다.`
 
-## 컨셉
+## 2가지 메인 컴포넌트
 1) Indexing : 데이터를 섭취하고, 인뎅싱 하는 파이프라인. 오프라인에서 일어 난다.
      - Load : 데이터를 로딩. Documents loaders 로 수행된다. 
      - Split : 모델의 한정된 컨텍스트 윈도우 안에서 큰 chunk는 검색에 어렵기 때문에, 큰 문서를 작은 chunk로 만드는 과정이 필요하다. 데이터를 인덱싱 하고 모델로 전달하기 위해 유용한 과정이다. 
@@ -15,19 +15,131 @@ https://python.langchain.com/v0.2/docs/tutorials/rag/
     - Generate : Chat model 이나 LLM 은 질문과 관련된 데이터가 포함된 prompt를 사용하여 답을 생성한다. '
 
 ## Practice
-#### 라이브러리 설치 
+### 라이브러리 설치 
 ```shell
 pip install langchain langchain_community langchain_chroma
 pip install -qU langchain-openai
 pip install langchainhub
 ```
 
-#### 필요한 환경 변수 세팅 
+### 필요한 환경 변수 세팅 
 vim .env
 ```shell
-LANGCHAIN_TRACING_V2="true"
-LANGCHAIN_API_KEY="ss"
-OPENAI_API_KEY="ss"                                                                                      
+LANGCHAIN_TRACING_V2=true
+LANGCHAIN_ENDPOINT="https://api.smith.langchain.com"
+LANGCHAIN_PROJECT="abc-v1"
+LANGCHAIN_API_KEY="ld9_b7e259ca96"
+OPENAI_API_KEY="sk-proj-ddyIXgoAg"
+USER_AGENT=default_user_agent_string                                                                                                                                  
+```
+
+### 전체 코드 
+
+```python
+from langchain_openai import ChatOpenAI
+from dotenv import load_dotenv, dotenv_values
+import os
+import bs4
+from langchain import hub
+from langchain_chroma import Chroma
+from langchain_community.document_loaders import WebBaseLoader
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.runnables import RunnablePassthrough
+from langchain_openai import OpenAIEmbeddings
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+
+### 환경변수 로드
+env_path = '.env'
+env_vars = dotenv_values(env_path)
+for key in env_vars:
+    if key in os.environ:
+        del os.environ[key]
+
+# Explicitly reload the .env file
+load_dotenv(env_path)
+
+### 모델 선언
+llm = ChatOpenAI(model="gpt-4o-mini")
+
+# Load, chunk and index the contents of the blog.
+loader = WebBaseLoader(
+    web_paths=("https://lilianweng.github.io/posts/2023-06-23-agent/",),
+    bs_kwargs=dict(
+        parse_only=bs4.SoupStrainer(
+            class_=("post-content", "post-title", "post-header")
+        )
+    ),
+)
+docs = loader.load()
+
+text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+splits = text_splitter.split_documents(docs)
+vectorstore = Chroma.from_documents(documents=splits, embedding=OpenAIEmbeddings())
+
+# Retrieve and generate using the relevant snippets of the blog.
+retriever = vectorstore.as_retriever()
+prompt = hub.pull("rlm/rag-prompt")
+
+
+def format_docs(docs):
+    return "\n\n".join(doc.page_content for doc in docs)
+
+
+rag_chain = (
+    {"context": retriever | format_docs, "question": RunnablePassthrough()}
+    | prompt
+    | llm
+    | StrOutputParser()
+)
+
+rag_chain.invoke("What is Task Decomposition?")
+
+# cleanup
+vectorstore.delete_collection()
+```
+
+#### 나눠서 보기 1. Indexing: Load
+```python
+import bs4
+from langchain_community.document_loaders import WebBaseLoader
+
+# Only keep post title, headers, and content from the full HTML.
+bs4_strainer = bs4.SoupStrainer(class_=("post-title", "post-header", "post-content"))
+loader = WebBaseLoader(
+    web_paths=("https://lilianweng.github.io/posts/2023-06-23-agent/",),
+    bs_kwargs={"parse_only": bs4_strainer},
+)
+docs = loader.load()
+
+len(docs[0].page_content)
+```
+
+- WebBaseLoader : urllib 를 사용하여 HTML를 읽는다.
+- bs4 :  bs4 라이브러리는 BeautifulSoup을 포함하고 있고, BeautifulSoup은 HTML과 XML 파일을 파싱하는 데 사용되는 파이썬 라이브러리. 주로 웹 스크래핑을 위해 사용되며, 구조화되지 않은 웹 페이지 데이터를 구조화된 형태로 변환하는 데 매우 유용함.
+- `bs4_strainer = bs4.SoupStrainer(class_=("post-title", "post-header", "post-content"))` :  "post-title", "post-header", "post-content" 의 내용만 읽고 싶을 경우 지정해준다.
+- bs_kwargs 를 통해 parse 옵션을 설정한다. 
+ 
+#### 나눠서 보기 2. Indexing: Split
+```
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+
+text_splitter = RecursiveCharacterTextSplitter(
+    chunk_size=1000, chunk_overlap=200, add_start_index=True
+)
+all_splits = text_splitter.split_documents(docs)
+
+len(all_splits) ### 66
 ```
 
 
+- 모델이 정보를 찾기에도 힘들고, context 윈도우 사이즈에 비해서도 너무 크기 때문에 Document를 chunk로 자르고, embedding하고 vector store에 저장해야 한다.
+- 1000개의 캐릭터씩 자르고, chunk 사이에 200자가 겹치도록 설정함.
+- RecursiveCharacterTextSplitter : 각각의 청크가 적절한 사이즈가 될 때까지, 뉴라인 같은 흔한 구분자를 사용하여 문서를 반복적으로 자른다. 추천되는 문자열 자르기이다. 
+- add_start_index=True : 문자 인덱스가 메타데이터 속성 "start_index"로 유지되게 설정
+
+#### 나눠서 보기 3. Indexing: Store
+- 66개의 청크를 runtime에 검색하려면, 컨텐츠를 embed 
+
+#### 나눠서 보기 4. Retrieval and Generation: Retrieve
+#### 나눠서 보기 5. Retrieval and Generation: Generate
+#### 나눠서 보기   Built-in chains

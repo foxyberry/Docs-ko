@@ -117,7 +117,8 @@ len(docs[0].page_content)
 - WebBaseLoader : urllib 를 사용하여 HTML를 읽는다.
 - bs4 :  bs4 라이브러리는 BeautifulSoup을 포함하고 있고, BeautifulSoup은 HTML과 XML 파일을 파싱하는 데 사용되는 파이썬 라이브러리. 주로 웹 스크래핑을 위해 사용되며, 구조화되지 않은 웹 페이지 데이터를 구조화된 형태로 변환하는 데 매우 유용함.
 - `bs4_strainer = bs4.SoupStrainer(class_=("post-title", "post-header", "post-content"))` :  "post-title", "post-header", "post-content" 의 내용만 읽고 싶을 경우 지정해준다.
-- bs_kwargs 를 통해 parse 옵션을 설정한다. 
+- bs_kwargs 를 통해 parse 옵션을 설정한다.
+- Document Loaders : https://python.langchain.com/v0.2/docs/integrations/document_loaders/
  
 #### 나눠서 보기 2. Indexing: Split
 ```
@@ -136,10 +137,23 @@ len(all_splits) ### 66
 - 1000개의 캐릭터씩 자르고, chunk 사이에 200자가 겹치도록 설정함.
 - RecursiveCharacterTextSplitter : 각각의 청크가 적절한 사이즈가 될 때까지, 뉴라인 같은 흔한 구분자를 사용하여 문서를 반복적으로 자른다. 추천되는 문자열 자르기이다. 
 - add_start_index=True : 문자 인덱스가 메타데이터 속성 "start_index"로 유지되게 설정
+- Document transformers : https://python.langchain.com/v0.2/docs/integrations/document_transformers/
 
 #### 나눠서 보기 3. Indexing: Store
-- 66개의 청크를 runtime에 검색하려면, 컨텐츠를 embed 
+```
+from langchain_chroma import Chroma
+from langchain_openai import OpenAIEmbeddings
+
+vectorstore = Chroma.from_documents(documents=all_splits, embedding=OpenAIEmbeddings())
+```
+- runtime에서 검색하려면 66개의 청크를 인덱싱 해야 한다.
+- 청크를 검색하는 흔한 방법 중 하나는 컨텐츠들을 청크로 나눠 embed하고, 그 embeding 된 결과를 벡터 디비에 넣어두고, 우리가 원하는 것을 찾기 위해서는 그 쿼리를 다시 임베딩하여 유사도 검색을 수행하는것이다.
+- 가장 간단한 유사도 측정은 cosine similarity 이다. (쌍들의 코싸인 각도를 측정)
+- 위의 코드는 OpenAIEmbeddings model를 이용하여 임베딩하고, 결과를 Chroma 벡터 디비에 저장한다.
+- Embedding model : https://python.langchain.com/v0.2/docs/integrations/text_embedding/
+- Vector stores: https://python.langchain.com/v0.2/docs/integrations/vectorstores/
 
 #### 나눠서 보기 4. Retrieval and Generation: Retrieve
+
 #### 나눠서 보기 5. Retrieval and Generation: Generate
 #### 나눠서 보기   Built-in chains

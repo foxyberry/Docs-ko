@@ -154,6 +154,49 @@ vectorstore = Chroma.from_documents(documents=all_splits, embedding=OpenAIEmbedd
 - Vector stores: https://python.langchain.com/v0.2/docs/integrations/vectorstores/
 
 #### 나눠서 보기 4. Retrieval and Generation: Retrieve
+```
+retriever = vectorstore.as_retriever(search_type="similarity", search_kwargs={"k": 6})
 
+retrieved_docs = retriever.invoke("What are the approaches to Task Decomposition?")
+
+len(retrieved_docs)
+
+```
+- VectorStoreRetriever : 흔하게 사용되는 Retriever 로써, 벡터 스토에서 유사성 검색을 수행한다.
+- MultiQueryRetriever : retriever의 hit rate를 높이기 위해서, 질문의 변형을 생성함
+- MultiVectorRetriever : embedding의 변형을 생성함
+- Max marginal relevance 
+- Retrievers : https://python.langchain.com/v0.2/docs/integrations/retrievers/
+  
 #### 나눠서 보기 5. Retrieval and Generation: Generate
+```python
+from langchain import hub
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.runnables import RunnablePassthrough
+
+
+prompt = hub.pull("rlm/rag-prompt")
+
+example_messages = prompt.invoke(
+    {"context": "filler context", "question": "filler question"}
+).to_messages()
+
+
+def format_docs(docs):
+    return "\n\n".join(doc.page_content for doc in docs)
+
+
+rag_chain = (
+    {"context": retriever | format_docs, "question": RunnablePassthrough()}
+    | prompt
+    | llm
+    | StrOutputParser()
+)
+
+for chunk in rag_chain.stream("What is Task Decomposition?"):
+    print(chunk, end="", flush=True)
+```
+
+
+
 #### 나눠서 보기   Built-in chains

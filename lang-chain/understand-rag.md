@@ -121,7 +121,7 @@ len(docs[0].page_content)
 - Document Loaders : https://python.langchain.com/v0.2/docs/integrations/document_loaders/
  
 #### 나눠서 보기 2. Indexing: Split
-```
+```python
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 text_splitter = RecursiveCharacterTextSplitter(
@@ -140,7 +140,7 @@ len(all_splits) ### 66
 - Document transformers : https://python.langchain.com/v0.2/docs/integrations/document_transformers/
 
 #### 나눠서 보기 3. Indexing: Store
-```
+```python
 from langchain_chroma import Chroma
 from langchain_openai import OpenAIEmbeddings
 
@@ -153,8 +153,9 @@ vectorstore = Chroma.from_documents(documents=all_splits, embedding=OpenAIEmbedd
 - Embedding model : https://python.langchain.com/v0.2/docs/integrations/text_embedding/
 - Vector stores: https://python.langchain.com/v0.2/docs/integrations/vectorstores/
 
+
 #### 나눠서 보기 4. Retrieval and Generation: Retrieve
-```
+```python
 retriever = vectorstore.as_retriever(search_type="similarity", search_kwargs={"k": 6})
 
 retrieved_docs = retriever.invoke("What are the approaches to Task Decomposition?")
@@ -162,18 +163,24 @@ retrieved_docs = retriever.invoke("What are the approaches to Task Decomposition
 len(retrieved_docs)
 
 ```
-- VectorStoreRetriever : 흔하게 사용되는 Retriever 로써, 벡터 스토에서 유사성 검색을 수행한다.
-- MultiQueryRetriever : retriever의 hit rate를 높이기 위해서, 질문의 변형을 생성함
-- MultiVectorRetriever : embedding의 변형을 생성함
-- Max marginal relevance 
-- Retrievers : https://python.langchain.com/v0.2/docs/integrations/retrievers/
+- 위의 코드에서 search_kwargs={"k" : 6} : 는 상위 6개를 반환하라는 의미이고, search_type은 유사성 검색으로 지정함.
+- search_type에 올 수 있는 것
+     - similarity : 비슷한 documents나 text를 찾을 때 주로 쓰이는 유사성 기반으로 하는 문서 검색
+     - mmr (Maximal Balance Relevance) : relevance 와 diversity 의 발란스를 고려하는 검색. 
+     - dense :  신경망에서 파생되는 문서와 query에서의 dense 검색에서 자주 쓰임,
+     - sparse :
+     - hybrid : 
+- Docs
+     - VectorStoreRetriever : 흔하게 사용되는 Retriever 로써, 벡터 스토에서 유사성 검색을 수행한다.
+     - MultiQueryRetriever : retriever의 hit rate를 높이기 위해서, 질문의 변형을 생성함
+     - MultiVectorRetriever : embedding의 변형을 생성함
+     - Retrievers : https://python.langchain.com/v0.2/docs/integrations/retrievers/
   
 #### 나눠서 보기 5. Retrieval and Generation: Generate
 ```python
 from langchain import hub
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough
-
 
 prompt = hub.pull("rlm/rag-prompt")
 
@@ -195,8 +202,45 @@ rag_chain = (
 
 for chunk in rag_chain.stream("What is Task Decomposition?"):
     print(chunk, end="", flush=True)
+
 ```
 
 
+- prompt : https://smith.langchain.com/hub/rlm/rag-prompt 
+- LCEL (LangChain Expession Language Runnables) : 선언적 방법으로 operations의 체인을 만들기 위해 사용되는 근본적인 컴포넌트. 통일된 인터페이스를 제공함
+- LCEL를 통하면 컴포넌터들의 파이프라인을 투명하게 설정할 수 있고 LangSmith에서 추적이 가능함
+- prompt, llm, StrOutputParser 은 Runnable 이며, Runnable Sequence로 이어질 수 있다.
+- 랭체인은 자동적으로 objects들을 Runnable로 변환한다.
+- format_docs는 RunnableLambda로 로 캐스트 되고, retriever 의 아웃풋을 format_docs에 넘긴 결과가 "conext"로 들어가게됨.
+- RunnablePassthrought()는 결과를 그냥 pass 하는 역활을 하게됨
+
 
 #### 나눠서 보기   Built-in chains
+
+빌트인 함수를 2가지 사용하여, 위의 역활을 수행할 수 있음
+
+```python
+from langchain_core.prompts import PromptTemplate
+
+template = """Use the following pieces of context to answer the question at the end.
+If you don't know the answer, just say that you don't know, don't try to make up an answer.
+Use three sentences maximum and keep the answer as concise as possible.
+Always say "thanks for asking!" at the end of the answer.
+
+{context}
+
+Question: {question}
+
+Helpful Answer:"""
+custom_rag_prompt = PromptTemplate.from_template(template)
+
+rag_chain = (
+    {"context": retriever | format_docs, "question": RunnablePassthrough()}
+    | custom_rag_prompt
+    | llm
+    | StrOutputParser()
+)
+
+rag_chain.invoke("What is Task Decomposition?")
+
+```
